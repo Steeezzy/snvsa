@@ -1,0 +1,58 @@
+plugins {
+    id 'application'
+}
+
+// Point to Java 23 which has Vector API (incubator) + Structured Concurrency (preview)
+def javaHome = '/Library/Java/JavaVirtualMachines/openjdk-23.jdk'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(23)
+    }
+}
+
+// ── Compiler flags ─────────────────────────────────────────────────────────
+// --enable-preview  : unlocks Structured Concurrency (preview in Java 23)
+// --add-modules     : opt-in to the Vector API incubator module
+tasks.withType(JavaCompile).configureEach {
+    options.release = 23
+    options.compilerArgs += [
+        '--enable-preview',
+        '--add-modules', 'jdk.incubator.vector'
+    ]
+}
+
+// ── Runtime flags ──────────────────────────────────────────────────────────
+tasks.withType(JavaExec).configureEach {
+    jvmArgs += [
+        '--enable-preview',
+        '--add-modules', 'jdk.incubator.vector'
+    ]
+}
+
+// ── Test flags ─────────────────────────────────────────────────────────────
+tasks.withType(Test).configureEach {
+    jvmArgs += [
+        '--enable-preview',
+        '--add-modules', 'jdk.incubator.vector'
+    ]
+    useJUnitPlatform()
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = true
+    }
+}
+
+application {
+    mainClass = 'helix.Helix'
+}
