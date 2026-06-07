@@ -1,6 +1,7 @@
 package helix;
 
 import java.util.concurrent.StructuredTaskScope;
+import java.util.Random;
 
 /**
  * A layer of {@link LIFNeuron}s that all process the same scalar input in parallel.
@@ -52,10 +53,12 @@ public class SNNLayer {
         if (size <= 0) throw new IllegalArgumentException("Layer size must be > 0");
         this.size    = size;
         this.neurons = new LIFNeuron[size];
+        Random rng = new Random();
         for (int i = 0; i < size; i++) {
-            // Vary tau per neuron; use modulo so the range never exceeds MAX_TAU_DELTA
-            double tau = BASE_TAU + (i * TAU_STEP % MAX_TAU_DELTA);
-            neurons[i] = new LIFNeuron(tau, THRESHOLD, REFRAC_PERIOD);
+            double tau       = 0.03 + (rng.nextDouble() * 0.08); // 0.03 to 0.11
+            double threshold = 0.10 + (rng.nextDouble() * 0.15); // 0.10 to 0.25
+            int refrac       = 1 + rng.nextInt(4);               // 1 to 4 ticks
+            neurons[i] = new LIFNeuron(tau, threshold, refrac);
         }
     }
 
@@ -88,6 +91,23 @@ public class SNNLayer {
             scope.join().throwIfFailed();
         }
 
+        return spikes;
+    }
+
+    @SuppressWarnings("preview")
+    public int[] tick(double input, double[] weights) throws Exception {
+        int[] spikes = new int[size];
+        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+            for (int i = 0; i < size; i++) {
+                final int idx = i;
+                scope.fork(() -> {
+                    // weight modulates how strongly each neuron receives input
+                    spikes[idx] = neurons[idx].tick(input * weights[idx]);
+                    return null;
+                });
+            }
+            scope.join().throwIfFailed();
+        }
         return spikes;
     }
 

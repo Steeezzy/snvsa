@@ -54,7 +54,7 @@ public class LIFNeuron {
      * Input scaling factor.
      * Prevents runaway voltage when raw input signals are large.
      */
-    private static final double INPUT_SCALE = 0.05;
+    private static final double INPUT_SCALE = 0.3;
 
     // ──────────────────────────────────────────────────────────────────────
     // Construction

@@ -70,7 +70,7 @@ public class STDPLearner {
 
     /** Create a learner with biologically inspired default parameters. */
     public STDPLearner() {
-        this(0.010, 0.012, 20.0, 20.0);
+        this(0.012, 0.008, 20.0, 20.0);
     }
 
     /**
@@ -117,33 +117,18 @@ public class STDPLearner {
      * @return updated synaptic weight, clipped to [−1.0, +1.0]
      */
     public double updateWeight(double currentWeight,
-                               int    preSpike,
-                               int    postSpike,
-                               double timeDelta,
-                               double reward) {
-
-        // Only update when both neurons participated in the spike pair
-        if (preSpike != 1 || postSpike != 1) {
-            return currentWeight; // no co-activation → no plasticity
+                               int preSpike, int postSpike,
+                               double timeDelta, double reward) {
+        double dw = 0.0;
+        if (postSpike == 1) {
+            // fired: strengthen if pre also fired, slightly weaken if not
+            dw = preSpike == 1 ? A_plus : -A_plus * 0.1;
+        } else if (preSpike == 1) {
+            // pre fired but post didn't: mild depression
+            dw = -A_minus * 0.05;
         }
-
-        double dw;
-        if (timeDelta > 0) {
-            // Pre fired before post: causal → potentiate
-            dw = A_plus * Math.exp(-timeDelta / tau_plus);
-        } else if (timeDelta < 0) {
-            // Post fired before pre: acausal → depress
-            dw = -A_minus * Math.exp(timeDelta / tau_minus); // timeDelta < 0, so exp(-|Δt|/τ)
-        } else {
-            // Simultaneous (Δt = 0): treat as slight potentiation
-            dw = A_plus * 0.5;
-        }
-
-        // Gate by reward: correct outcome amplifies, incorrect reverses
-        double newWeight = currentWeight + reward * dw;
-
-        // Clip to valid range
-        return Math.max(-1.0, Math.min(1.0, newWeight));
+        // clamp weight between 0.1 and 0.9
+        return Math.max(0.1, Math.min(0.9, currentWeight + reward * dw));
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -167,8 +152,8 @@ public class STDPLearner {
      * Called by the meta-learner when curiosity decreases (concept is learned).
      */
     public void resetPlasticity() {
-        A_plus  = 0.010;
-        A_minus = 0.012;
+        A_plus  = 0.012;
+        A_minus = 0.008;
     }
 
     // ── Getters (for monitoring) ───────────────────────────────────────────

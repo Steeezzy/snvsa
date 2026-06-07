@@ -3,6 +3,8 @@ package helix;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.net.Socket;
+import java.io.*;
 
 /**
  * The self-learning loop — HELIX-1's continuous online learning engine.
@@ -38,6 +40,14 @@ public class SelfLearningLoop implements Runnable {
     private final SNNLayer     snn;
     private final VSAMemory    memory;
     private final STDPLearner  stdp;
+    private final CuriosityEngine ce;
+
+    private Socket envSocket;
+    private PrintWriter envOut;
+    private BufferedReader envIn;
+
+    private final WorldModel worldModel = new WorldModel();
+    private int[] lastHV = null;
 
     // ──────────────────────────────────────────────────────────────────────
     // State
@@ -68,10 +78,11 @@ public class SelfLearningLoop implements Runnable {
      * @param memory the VSA memory to query and update
      * @param stdp   the STDP learner for weight updates
      */
-    public SelfLearningLoop(SNNLayer snn, VSAMemory memory, STDPLearner stdp) {
+    public SelfLearningLoop(SNNLayer snn, VSAMemory memory, STDPLearner stdp, CuriosityEngine ce) {
         this.snn    = snn;
         this.memory = memory;
         this.stdp   = stdp;
+        this.ce     = ce;
 
         this.synapticWeights = new double[snn.getSize()];
         Arrays.fill(synapticWeights, 0.5); // start at mid-range
@@ -81,6 +92,16 @@ public class SelfLearningLoop implements Runnable {
     // Main loop
     // ──────────────────────────────────────────────────────────────────────
 
+    public void connectToEnv() throws Exception {
+        envSocket = new Socket("localhost", 9999);
+        envSocket.setTcpNoDelay(true);
+        envOut = new PrintWriter(envSocket.getOutputStream(), true);
+        envIn = new BufferedReader(
+            new InputStreamReader(envSocket.getInputStream())
+        );
+        System.out.println("connected to environment");
+    }
+
     @Override
     public void run() {
         int[] lastSpikes = new int[snn.getSize()];
@@ -89,20 +110,37 @@ public class SelfLearningLoop implements Runnable {
         while (running.get()) {
             try {
                 // ── 1. Generate input ──────────────────────────────────────────
-                double input = generateInput(time);
+                // pick action based on best known concept (0-6 for MiniGrid)
+                int action = (int)(Math.abs(synapticWeights[0] * 6)) % 7;
+                envOut.println(action);
+
+                // get real observation and reward from environment
+                String response = envIn.readLine();
+                if (response == null) break;
+                var json = new org.json.JSONObject(response);
+                double input = json.getDouble("obs");
+                double envReward = json.getDouble("reward");
 
                 // ── 2. Fire SNN layer ──────────────────────────────────────────
                 int[] spikes = snn.tick(input);
 
                 // ── 3. Encode spike train → VSA hypervector ───────────────────
                 int[] queryHV = memory.encodeSpikeTraIn(spikes);
+                double predictionError = worldModel.tick(queryHV, lastHV, envReward);
+                lastHV = queryHV;
 
                 // ── 4. Predict (nearest-neighbour VSA query) ──────────────────
                 String prediction = memory.query(queryHV);
                 String label      = extractLabel(prediction);
 
                 // ── 5. Evaluate reward ────────────────────────────────────────
-                double reward = evaluateReward(label, input);
+                double reward = envReward > 0 ? 1.0
+                    : predictionError < 0.3 ? 0.5   // good prediction even without env reward
+                    : predictionError > 0.8 ? -0.5  // terrible prediction
+                    : 0.0;
+
+                ce.observe(prediction, reward);
+                double boost = ce.getLearningBoost(prediction);
 
                 // ── 6. STDP weight update for every neuron ────────────────────
                 for (int i = 0; i < spikes.length; i++) {
@@ -117,7 +155,7 @@ public class SelfLearningLoop implements Runnable {
                         lastSpikes[i],
                         spikes[i],
                         timeDelta,
-                        reward
+                        reward * boost
                     );
                 }
 
@@ -134,7 +172,7 @@ public class SelfLearningLoop implements Runnable {
                 time       += 1.0;  // 1 ms per tick
                 tick++;
 
-                Thread.sleep(1); // 1 ms real-time pacing (remove for max speed)
+                Thread.sleep(0, 100000); // 0.1ms instead of 1ms
 
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
@@ -187,12 +225,26 @@ public class SelfLearningLoop implements Runnable {
      * @return reward in [−1.0, +1.0]
      */
     protected double evaluateReward(String prediction, double actualInput) {
-        if (actualInput > 1.0  && "high".equals(prediction))    return  1.0;
-        if (actualInput < -1.0 && "low".equals(prediction))     return  1.0;
-        if (actualInput > 0.3  && "rising".equals(prediction))  return  0.5;
-        if (actualInput < -0.3 && "falling".equals(prediction)) return  0.5;
-        if (Math.abs(actualInput) < 0.2 && "stable".equals(prediction)) return 0.3;
-        return -0.5; // wrong concept predicted
+        // Extract the similarity score from the prediction string (e.g., "high (sim=0.017)")
+        double similarity = 0.0;
+        int simIdx = prediction.indexOf("sim=");
+        if (simIdx != -1) {
+            int endIdx = prediction.indexOf(')', simIdx);
+            if (endIdx != -1) {
+                try {
+                    similarity = Double.parseDouble(prediction.substring(simIdx + 4, endIdx));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Apply the reward logic based on similarity
+        if (similarity > 0.3) {
+            return 1.0;
+        } else if (similarity >= 0.1 && similarity <= 0.3) {
+            return 0.0;
+        } else {
+            return -0.5;
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -202,6 +254,10 @@ public class SelfLearningLoop implements Runnable {
     /** Request graceful shutdown.  The loop will exit after the current tick. */
     public void stop() {
         running.set(false);
+    }
+
+    public double getWorldModelError() {
+        return worldModel.getLastPredictionError();
     }
 
     // ──────────────────────────────────────────────────────────────────────

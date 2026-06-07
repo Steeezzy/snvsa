@@ -1,5 +1,6 @@
 package helix;
 
+import java.util.*;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,7 +39,7 @@ public class VSAMemory {
      * Keys: concept names (e.g., "high", "low", "idx_42").
      * Values: random hypervectors of length {@link HypervectorOps#DIM}.
      */
-    private final Map<String, int[]> dictionary = new HashMap<>();
+    private final Map<String, int[]> dictionary = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Prototype vector for the "neuron fired" concept.
@@ -142,21 +143,26 @@ public class VSAMemory {
      * @return best-matching concept label and similarity score as a formatted string,
      *         e.g., {@code "high (sim=0.342)"}
      */
+    private static final int SEARCH_LIMIT = 500;
+    private final java.util.Random queryRng = new java.util.Random();
+
     public String query(int[] queryHV) {
-        String best    = "unknown";
-        double bestSim = -2.0; // lower than any possible cosine value
+        String best = "unknown";
+        double bestSim = -1.0;
 
-        for (Map.Entry<String, int[]> entry : dictionary.entrySet()) {
-            // Skip internal position prototypes
-            if (entry.getKey().startsWith("idx_")) continue;
+        // sample 500 random concepts instead of scanning all 50k
+        List<String> keys = new ArrayList<>(dictionary.keySet());
+        int limit = Math.min(SEARCH_LIMIT, keys.size());
 
-            double sim = HypervectorOps.similarity(queryHV, entry.getValue());
+        for (int i = 0; i < limit; i++) {
+            int idx = queryRng.nextInt(keys.size());
+            String concept = keys.get(idx);
+            double sim = HypervectorOps.similarity(queryHV, dictionary.get(concept));
             if (sim > bestSim) {
                 bestSim = sim;
-                best    = entry.getKey();
+                best = concept;
             }
         }
-
         return best + " (sim=" + String.format("%.3f", bestSim) + ")";
     }
 
@@ -202,5 +208,18 @@ public class VSAMemory {
     /** @return total number of entries in the dictionary (including idx_ prototypes) */
     public int size() {
         return dictionary.size();
+    }
+
+    // returns the hypervector for a concept, null if not found
+    public int[] getHV(String concept) {
+        // try exact match first
+        if (dictionary.containsKey(concept)) return dictionary.get(concept);
+        // try partial match
+        for (String key : dictionary.keySet()) {
+            if (key.startsWith(concept) || concept.startsWith(key)) {
+                return dictionary.get(key);
+            }
+        }
+        return null;
     }
 }

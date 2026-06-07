@@ -10,6 +10,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.json:json:20240303'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-params:5.10.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -34,6 +35,8 @@ tasks.withType(JavaCompile).configureEach {
 
 // ── Runtime flags ──────────────────────────────────────────────────────────
 tasks.withType(JavaExec).configureEach {
+    maxHeapSize = "4g"
+    workingDir = rootProject.projectDir
     jvmArgs += [
         '--enable-preview',
         '--add-modules', 'jdk.incubator.vector'
