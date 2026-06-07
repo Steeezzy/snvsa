@@ -90,8 +90,10 @@ public class HelixAgent implements Runnable {
                 // 3. encode to HV
                 int[] hv = memory.encodeSpikeTraIn(spikes);
 
-                // 4. world model prediction
-                double predError = worldModel.tick(hv, lastHV, currentEnvReward);
+                // 4. world model prediction (skip for LANGUAGE - incompatible HV space)
+                double predError = (role == AgentRole.LANGUAGE)
+                    ? worldModel.getLastPredictionError()
+                    : worldModel.tick(hv, lastHV, currentEnvReward);
                 lastHV = hv;
 
                 // 5. query memory for concept
@@ -102,15 +104,11 @@ public class HelixAgent implements Runnable {
                 if (currentEnvReward >= 1.0) successWindowRemaining = 50;
                 if (successWindowRemaining > 0) successWindowRemaining--;
 
-                double improvement = worldModel.getLastImprovement();
-                double intrinsic   = improvement > 0.01 ? 0.3 : 0.0;
                 double successBonus = successWindowRemaining > 0 ? 0.8 : 0.0;
 
-                double reward = successWindowRemaining > 0 ? 1.0 + intrinsic
-                    : currentEnvReward > 0  ? 1.0
-                    : predError < 0.3       ? 0.5 + intrinsic
-                    : predError > 0.8       ? -0.1 + intrinsic  // softened penalty
-                    : intrinsic + successBonus;
+                double reward = successWindowRemaining > 0 ? 1.0
+                    : currentEnvReward > 0 ? 1.0
+                    : successBonus;
 
                 double baseReward = reward;
 

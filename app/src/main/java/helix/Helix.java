@@ -58,7 +58,7 @@ public class Helix {
         Thread metaThread = Thread.ofVirtual().name("meta").start(meta);
 
         System.out.println("swarm online — 4 specialist agents + 1 meta agent");
-        System.out.println("reporting every 3s for 600 cycles (30 min)\n");
+        System.out.println("reporting every 3s for 30 cycles\n");
 
         // connect language agent to text server
         HelixAgent languageAgent = agents.stream()
@@ -134,7 +134,7 @@ public class Helix {
         });
 
         // report loop — just prints, doesn't drive env
-        for (int report = 1; report <= 600; report++) {
+        for (int report = 1; report <= 30; report++) {
             Thread.sleep(3000);
 
             // print swarm report
