@@ -88,11 +88,6 @@ public class WorldModel {
     public double tick(int[] currentHV, int[] previousHV, double envReward) {
         if (previousHV == null) return 1.0;
 
-        // only learn when HV actually changed meaningfully
-        if (lastSeenHV != null) {
-            double stability = HypervectorOps.similarity(currentHV, lastSeenHV);
-            if (stability > 0.95) return lastPredictionError; // same state, skip
-        }
         lastSeenHV = currentHV.clone();
 
         double[] prevCompressed = encode(previousHV);
