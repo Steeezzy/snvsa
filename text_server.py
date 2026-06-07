@@ -2,7 +2,6 @@ import socket
 import time
 import random
 
-# varied word stream — mix of concrete and abstract concepts
 sentences = [
     "the cat sat on the mat",
     "dog runs fast across field",
@@ -29,17 +28,15 @@ server.listen(1)
 print("text server ready on port 9998")
 
 conn, _ = server.accept()
-print("language agent connected")
 f = conn.makefile('w')
-
 idx = 0
+
 while True:
     try:
-        word = words[idx % len(words)]
-        f.write(word + "\n")
+        f.write(words[idx % len(words)] + "\n")
         f.flush()
         idx += 1
-        time.sleep(0.05)  # one word every 50ms
+        time.sleep(0.05)
     except BrokenPipeError:
         break
 

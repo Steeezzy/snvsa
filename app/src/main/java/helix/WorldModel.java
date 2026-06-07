@@ -30,7 +30,7 @@ public class WorldModel {
                 decoder[j][i] = encoder[i][j]; // transpose
             }
             for (int j = 0; j < PROJ_DIM; j++) {
-                weights[i][j] = rng.nextGaussian() * 0.01;
+                weights[i][j] = rng.nextGaussian() * 0.3; // important: 0.3 not 0.01
             }
         }
     }
