@@ -1,2 +1,5 @@
 data/conceptnet-assertions-5.7.0.csv.gz
 data/*.csv.gz
+.gradle/
+app/build/
+build/
