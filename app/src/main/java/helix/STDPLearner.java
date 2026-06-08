@@ -127,8 +127,8 @@ public class STDPLearner {
             // pre fired but post didn't: mild depression
             dw = -A_minus * 0.05;
         }
-        // clamp weight between 0.1 and 0.9
-        return Math.max(0.1, Math.min(0.9, currentWeight + reward * dw));
+        // clamp weight between 0.05 and 0.95
+        return Math.max(0.05, Math.min(0.95, currentWeight + reward * dw));
     }
 
     // ──────────────────────────────────────────────────────────────────────

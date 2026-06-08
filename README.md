@@ -34,16 +34,21 @@ Shared:
 
 ## Key results
 
+| Task | Success rate | Random baseline | Ratio |
+|------|-------------|-----------------|-------|
+| MiniGrid-Empty-5x5-v0 | 75.4% | ~5% | 15× |
+| MiniGrid-FourRooms-v0 | 18.2% | ~1% | 18× |
+
 | Metric | Value |
 |--------|-------|
-| MiniGrid success rate | 75.7% |
-| Random baseline | ~5% |
-| Episodes per 90s run | ~600 |
+| Episodes per 30min run | ~6,000 |
 | Concepts in VSA memory | 50,001 |
 | Agents | 5 (4 specialist + 1 meta) |
 | Neurons per agent | 64 LIF |
 | Learning rule | Reward-modulated STDP |
 | Backpropagation used | None |
+
+**Transfer learning demonstrated:** curriculum training (Empty-5x5 → Empty-6x6 → Empty-8x8 → FourRooms) with richer observations enables 18× above random on unseen FourRooms layout, vs 1.1% (random) from scratch.
 
 ## Core technology
 

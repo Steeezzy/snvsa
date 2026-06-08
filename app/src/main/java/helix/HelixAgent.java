@@ -16,7 +16,7 @@ public class HelixAgent implements Runnable {
     private int[] lastHV = null;
     private double learningRateMultiplier = 1.0;
 
-    private final WorkingMemory workingMemory = new WorkingMemory();
+    private WorkingMemory workingMemory = new WorkingMemory();
     private final EpisodicMemory episodicMemory = new EpisodicMemory();
     private int[] lastPerceptHV = null;  // from PERCEPTION agent via bus
     private int[] lastLanguageHV = null; // from LANGUAGE agent via bus
@@ -126,6 +126,11 @@ public class HelixAgent implements Runnable {
                         if (tick % 100 == 0 && thoughtGenerator != null) {
                             lastThought = thoughtGenerator.generate(hv);
                         }
+                    }
+
+                    // refresh working memory every 500 ticks to prevent saturation
+                    if (tick % 500 == 0) {
+                        workingMemory = new WorkingMemory();
                     }
                 }
 

@@ -3,7 +3,17 @@ import minigrid
 import socket
 import json
 
-env = gym.make("MiniGrid-Empty-5x5-v0")
+def get_env_for_episode(episode_num):
+    if episode_num < 500:
+        return gym.make("MiniGrid-Empty-5x5-v0")
+    elif episode_num < 1500:
+        return gym.make("MiniGrid-Empty-6x6-v0")
+    elif episode_num < 3000:
+        return gym.make("MiniGrid-Empty-8x8-v0")
+    else:
+        return gym.make("MiniGrid-FourRooms-v0")
+
+env = get_env_for_episode(0)
 obs, _ = env.reset()
 
 episode_steps = 0
@@ -37,11 +47,28 @@ while True:
                 successes += 1
             print(f"episode {total_episodes} | steps={episode_steps} | success={success} | rate={successes/total_episodes:.2f}")
             episode_steps = 0
+
+            # curriculum: upgrade environment
+            new_env = get_env_for_episode(total_episodes)
+            if type(new_env).__name__ != type(env).__name__:
+                print(f">>> CURRICULUM: upgrading to {new_env.spec.id}")
+            env = new_env
             obs, _ = env.reset()
             reward = 1.0 if success else 0.0
 
         image = obs["image"]
-        scalar = float(image[:,:,0].sum()) / 500.0
+
+        # 1. what is directly in front of the agent (center column, front row)
+        forward_cell = float(image[3][6][0]) / 10.0  # 0=empty, 1=wall, 2=goal
+
+        # 2. agent direction encoded as a scalar
+        direction = float(obs.get("direction", 0)) / 4.0  # 0-3 normalized
+
+        # 3. density of empty cells in visible area (navigability)
+        navigability = float((image[:,:,0] == 1).sum()) / (7 * 7)
+
+        # combine into one signal with different weights
+        scalar = (forward_cell * 0.5) + (direction * 0.3) + (navigability * 0.2)
         scalar = min(1.0, max(0.1, scalar))
 
         response = json.dumps({

@@ -134,7 +134,7 @@ public class Helix {
         });
 
         // report loop — just prints, doesn't drive env
-        for (int report = 1; report <= 30; report++) {
+        for (int report = 1; report <= 600; report++) {
             Thread.sleep(3000);
 
             // print swarm report
